@@ -1,7 +1,5 @@
 package gr.dmst.edu.redis.service;
 
-// src/main/java/com/meetingapp/service/MeetingService.java
-
 import gr.dmst.edu.redis.model.ActiveMeeting;
 import gr.dmst.edu.redis.model.ChatMessage;
 import gr.dmst.edu.redis.model.Log;
@@ -10,12 +8,13 @@ import gr.dmst.edu.redis.repository.ActiveMeetingRepository;
 import gr.dmst.edu.redis.repository.LogRepository;
 import gr.dmst.edu.redis.repository.MeetingRepository;
 import gr.dmst.edu.redis.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.sql.SQLOutput;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -30,6 +29,8 @@ public class MeetingService {
     private final LogRepository logRepository;
     private final ActiveMeetingRepository activeMeetingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
     private static final String CHAT_KEY_PREFIX = "chat:";
     private static final double MAX_DISTANCE_METERS = 100.0;
@@ -58,7 +59,6 @@ public class MeetingService {
                 activeMeetingRepository.save(activeMeeting);
                 System.out.println("Meeting saved to Redis: " + meeting.getMeetingId());
             }
-
         }
 
         // Find meetings that should be deactivated
@@ -218,14 +218,13 @@ public class MeetingService {
         // Delete the meeting from Redis
         activeMeetingRepository.deleteById(meetingId);
 
-        // Delete chat messages
-        redisTemplate.delete(CHAT_KEY_PREFIX + meetingId);
+        // Delete chat messages - using StringRedisTemplate
+        stringRedisTemplate.delete(CHAT_KEY_PREFIX + meetingId);
 
         return true;
     }
 
     // Function 7: Post a message to chat
-    // Add this method to your MeetingService class
     public boolean postMessageToMeeting(String meetingId, String email, String text) {
         // Check if meeting exists
         Optional<ActiveMeeting> optionalMeeting = activeMeetingRepository.findById(meetingId);
@@ -236,30 +235,42 @@ public class MeetingService {
         // Construct the chat key for this meeting
         String chatKey = CHAT_KEY_PREFIX + meetingId;
 
-        // Create and store the message
+        // Create message and convert to JSON string
         ChatMessage message = new ChatMessage(email, text, System.currentTimeMillis());
-        redisTemplate.opsForList().rightPush(chatKey, message);
-
-        return true;
+        try {
+            String jsonMessage = objectMapper.writeValueAsString(message);
+            stringRedisTemplate.opsForList().rightPush(chatKey, jsonMessage);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     // Function 8: Get all chat messages for a meeting
     public List<ChatMessage> getMeetingChatMessages(String meetingId) {
         String chatKey = CHAT_KEY_PREFIX + meetingId;
 
-        Long size = redisTemplate.opsForList().size(chatKey);
+        Long size = stringRedisTemplate.opsForList().size(chatKey);
         if (size == null || size == 0) {
             return Collections.emptyList();
         }
 
-        List<Object> messages = redisTemplate.opsForList().range(chatKey, 0, size - 1);
-        if (messages == null) {
+        List<String> jsonMessages = stringRedisTemplate.opsForList().range(chatKey, 0, size - 1);
+        if (jsonMessages == null || jsonMessages.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return messages.stream()
-                .filter(obj -> obj instanceof ChatMessage)
-                .map(obj -> (ChatMessage) obj)
+        return jsonMessages.stream()
+                .map(jsonStr -> {
+                    try {
+                        return objectMapper.readValue(jsonStr, ChatMessage.class);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
