@@ -53,7 +53,7 @@ To get started with this project, follow the instructions below.
 6. The application will be available at http://localhost:8080
 
 ### API endpoints 
-A complete set of examples for API endpoints for postman in the **API_ENDPOINTS.md** file.
+A complete set of examples for API endpoints using curl in the **API_ENDPOINTS.md** file.
 #### User Management
 - POST /api/users - create a new user (param: email)
 - DELETE /api/users - delete a user (param: email)
