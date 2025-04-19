@@ -242,7 +242,7 @@ public class MeetingService {
             stringRedisTemplate.opsForList().rightPush(chatKey, jsonMessage);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Error serializing chat message: " + e.getMessage());
             return false;
         }
     }
@@ -266,7 +266,7 @@ public class MeetingService {
                     try {
                         return objectMapper.readValue(jsonStr, ChatMessage.class);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        System.err.println("Error deserializing chat message: " + e.getMessage());
                         return null;
                     }
                 })
@@ -274,18 +274,39 @@ public class MeetingService {
                 .collect(Collectors.toList());
     }
 
-    // Function 9: Get all messages posted by a user
+    // Function 9: Get all messages posted by a user from all meetings
     public List<ChatMessage> getUserMessages(String email) {
-        // Find which meeting the user has joined
-        Optional<ActiveMeeting> joinedMeeting = StreamSupport.stream(activeMeetingRepository.findAll().spliterator(), false)
+        // Find all meetings the user has joined
+        List<ActiveMeeting> joinedMeetings = StreamSupport.stream(activeMeetingRepository.findAll().spliterator(), false)
                 .filter(m -> m.getJoinedParticipants().contains(email))
-                .findFirst();
+                .collect(Collectors.toList());
 
-        if (joinedMeeting.isEmpty()) {
+        if (joinedMeetings.isEmpty()) {
             return Collections.emptyList();
         }
 
-        String meetingId = joinedMeeting.get().getMeetingId();
+        // Get all messages from all joined meetings and filter by user
+        List<ChatMessage> allUserMessages = new ArrayList<>();
+
+        for (ActiveMeeting meeting : joinedMeetings) {
+            List<ChatMessage> meetingMessages = getMeetingChatMessages(meeting.getMeetingId());
+            // Filter only messages by this user
+            List<ChatMessage> userMessagesInMeeting = meetingMessages.stream()
+                    .filter(msg -> email.equals(msg.getEmail()))
+                    .collect(Collectors.toList());
+
+            allUserMessages.addAll(userMessagesInMeeting);
+        }
+
+        return allUserMessages;
+    }
+    // Function: Get messages from a specific user in a specific meeting
+    public List<ChatMessage> getUserMessagesInMeeting(String email, String meetingId) {
+        // Check if meeting exists and user is joined
+        Optional<ActiveMeeting> optionalMeeting = activeMeetingRepository.findById(meetingId);
+        if (optionalMeeting.isEmpty() || !optionalMeeting.get().getJoinedParticipants().contains(email)) {
+            return Collections.emptyList();
+        }
 
         // Get all messages from the meeting
         List<ChatMessage> allMessages = getMeetingChatMessages(meetingId);
@@ -295,6 +316,7 @@ public class MeetingService {
                 .filter(msg -> email.equals(msg.getEmail()))
                 .collect(Collectors.toList());
     }
+
 
     // Helper method to calculate distance between two points
     private double calculateDistance(double x1, double y1, double x2, double y2) {

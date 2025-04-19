@@ -41,17 +41,18 @@ public class MeetingController {
         userRepository.deleteById(email);
         return ResponseEntity.ok().build();
     }
-
+    // Bonus function to create a meeting in postgres
     @PostMapping("/meetings")
     public Meeting createMeeting(@RequestBody Meeting meeting) {
         return meetingRepository.save(meeting);
     }
 
+    // Bonus function to get all meetings from postgres
     @GetMapping("/meetings")
     public List<Meeting> getAllMeetings() {
         return meetingRepository.findAll();
     }
-
+    // Bonus function to delete a meeting from postgres
     @DeleteMapping("/meetings/{id}")
     public ResponseEntity<?> deleteMeeting(@PathVariable String id) {
         if (!meetingRepository.existsById(id)) {
@@ -150,7 +151,15 @@ public class MeetingController {
     public List<ChatMessage> getUserMessages(@PathVariable String email) {
         return meetingService.getUserMessages(email);
     }
-    //Bonus function
+    // Function 10: Get user messages for a specific meeting
+    @GetMapping("/meetings/{meetingId}/chat/user/{email}")
+    public List<ChatMessage> getUserMessagesInMeeting(
+            @PathVariable String meetingId,
+            @PathVariable String email) {
+        return meetingService.getUserMessagesInMeeting(email, meetingId);
+    }
+
+    //Bonus function to activate if bored waiting a minute a meeting
     @PostMapping("/meetings/{meetingId}/activate")
     public ResponseEntity<?> activateMeeting(@PathVariable String meetingId) {
         Optional<Meeting> optionalMeeting = meetingRepository.findById(meetingId);
@@ -177,6 +186,9 @@ public class MeetingController {
 
         return ResponseEntity.ok("Meeting " + meetingId + " manually activated");
     }
+
+    // Bonus function to debug Redis, returns all Redis keys and active meetings
+    // Useful for troubleshooting Redis data inconsistencies or verifying active meetings
     @GetMapping("/redis/debug")
     public Map<String, Object> debugRedis() {
         Map<String, Object> result = new HashMap<>();
