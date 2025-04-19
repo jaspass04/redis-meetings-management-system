@@ -30,7 +30,6 @@ To get started with this project, follow the instructions below.
 
 - Install **Redis** on your local machine (or use a cloud Redis provider).
 - Make sure you have **Java 17+ , Docker and Docker Compose, Maven and Postgres** installed.
-- 
 
 ### Setup
 
