@@ -107,7 +107,7 @@ curl -X POST http://localhost:8080/api/meetings/meet-001/chat/post \
     "message": "Hello everyone, I am joining the meeting now."
   }' 
 ```
-####Get All Meeting Chat Messages (Assignment Functionality 8)
+#### Get All Meeting Chat Messages (Assignment Functionality 8)
 
 ```
 curl -X GET http://localhost:8080/api/meetings/meet-001/chat
