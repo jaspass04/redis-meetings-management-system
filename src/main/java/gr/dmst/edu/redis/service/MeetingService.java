@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.sql.SQLOutput;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -36,16 +37,28 @@ public class MeetingService {
     @Scheduled(fixedRate = 60000) // Run every minute
     public void updateActiveMeetings() {
         LocalDateTime now = LocalDateTime.now();
+        System.out.println("Scheduler running at: " + now);
 
-        // Find meetings that should be active
+        // Get meetings that should be active from PostgreSQL
         List<Meeting> activeMeetings = meetingRepository.findActiveMeetings(now);
+        System.out.println("Found " + activeMeetings.size() + " meetings that should be active");
 
-        // Add meetings to Redis that aren't already active
         for (Meeting meeting : activeMeetings) {
-            if (!activeMeetingRepository.existsById(meeting.getMeetingId())) {
-                ActiveMeeting activeMeeting = convertToActiveMeeting(meeting);
+            System.out.println("Processing meeting: " + meeting.getMeetingId());
+
+            // Convert PostgreSQL meeting to Redis ActiveMeeting using the existing method
+            ActiveMeeting activeMeeting = convertToActiveMeeting(meeting);
+
+            // Check if meeting is already active in Redis
+            Optional<ActiveMeeting> existingMeeting = activeMeetingRepository.findById(meeting.getMeetingId());
+
+            // If not already in Redis, or needs updating, save it
+            if (existingMeeting.isEmpty()) {
+                System.out.println("Activating new meeting: " + meeting.getMeetingId());
                 activeMeetingRepository.save(activeMeeting);
+                System.out.println("Meeting saved to Redis: " + meeting.getMeetingId());
             }
+
         }
 
         // Find meetings that should be deactivated
@@ -61,6 +74,7 @@ public class MeetingService {
         // Deactivate meetings that should no longer be active
         for (String id : redisIds) {
             if (!activeIds.contains(id)) {
+                System.out.println("Deactivating meeting: " + id);
                 endMeeting(id);
             }
         }
@@ -211,19 +225,18 @@ public class MeetingService {
     }
 
     // Function 7: Post a message to chat
-    public boolean postMessage(String email, String text) {
-        // Find which meeting the user has joined
-        Optional<ActiveMeeting> joinedMeeting = StreamSupport.stream(activeMeetingRepository.findAll().spliterator(), false)
-                .filter(m -> m.getJoinedParticipants().contains(email))
-                .findFirst();
-
-        if (joinedMeeting.isEmpty()) {
-            return false; // User has not joined any meeting
+    // Add this method to your MeetingService class
+    public boolean postMessageToMeeting(String meetingId, String email, String text) {
+        // Check if meeting exists
+        Optional<ActiveMeeting> optionalMeeting = activeMeetingRepository.findById(meetingId);
+        if (optionalMeeting.isEmpty()) {
+            return false; // Meeting doesn't exist
         }
 
-        String meetingId = joinedMeeting.get().getMeetingId();
+        // Construct the chat key for this meeting
         String chatKey = CHAT_KEY_PREFIX + meetingId;
 
+        // Create and store the message
         ChatMessage message = new ChatMessage(email, text, System.currentTimeMillis());
         redisTemplate.opsForList().rightPush(chatKey, message);
 

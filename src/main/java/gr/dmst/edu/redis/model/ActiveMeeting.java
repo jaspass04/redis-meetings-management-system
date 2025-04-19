@@ -14,6 +14,8 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ActiveMeeting {
+    private static final long serialVersionUID = 1L;
+
     @Id
     private String meetingId;
     private String title;

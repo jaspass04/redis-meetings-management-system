@@ -9,12 +9,14 @@ import gr.dmst.edu.redis.repository.MeetingRepository;
 import gr.dmst.edu.redis.repository.UserRepository;
 import gr.dmst.edu.redis.service.MeetingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @RestController
 @RequestMapping("/api")
@@ -24,6 +26,7 @@ public class MeetingController {
     private final UserRepository userRepository;
     private final MeetingRepository meetingRepository;
     private final ActiveMeetingRepository activeMeetingRepository;
+    private final RedisTemplate<String, String> redisTemplate;
     // User and meeting management
     @PostMapping("/users")
     public User createUser(@RequestBody User user) {
@@ -42,6 +45,11 @@ public class MeetingController {
     @PostMapping("/meetings")
     public Meeting createMeeting(@RequestBody Meeting meeting) {
         return meetingRepository.save(meeting);
+    }
+
+    @GetMapping("/meetings")
+    public List<Meeting> getAllMeetings() {
+        return meetingRepository.findAll();
     }
 
     @DeleteMapping("/meetings/{id}")
@@ -109,12 +117,22 @@ public class MeetingController {
     }
 
     // Function 7: Post message
-    @PostMapping("/chat/post")
-    public ResponseEntity<?> postMessage(@RequestBody Map<String, String> payload) {
+    @PostMapping("/meetings/{meetingId}/chat/post")
+    public ResponseEntity<?> postMessageToMeeting(
+            @PathVariable String meetingId,
+            @RequestBody Map<String, String> payload) {
+
         String email = payload.get("email");
         String message = payload.get("message");
 
-        boolean success = meetingService.postMessage(email, message);
+        // Check if user is joined to this specific meeting
+        List<String> joinedUsers = meetingService.getJoinedParticipants(meetingId);
+        if (!joinedUsers.contains(email)) {
+            return ResponseEntity.status(403).body("User must join the meeting first");
+        }
+
+        // Store message directly to the specified meeting
+        boolean success = meetingService.postMessageToMeeting(meetingId, email, message);
         if (success) {
             return ResponseEntity.ok().build();
         }
@@ -158,5 +176,22 @@ public class MeetingController {
         activeMeetingRepository.save(activeMeeting);
 
         return ResponseEntity.ok("Meeting " + meetingId + " manually activated");
+    }
+    @GetMapping("/redis/debug")
+    public Map<String, Object> debugRedis() {
+        Map<String, Object> result = new HashMap<>();
+
+        // List all keys in Redis
+        Set<String> keys = redisTemplate.keys("*");
+        result.put("allKeys", keys);
+
+        // Check active meetings directly
+        Iterable<ActiveMeeting> meetings = activeMeetingRepository.findAll();
+        List<String> meetingIds = StreamSupport.stream(meetings.spliterator(), false)
+                .map(ActiveMeeting::getMeetingId)
+                .collect(Collectors.toList());
+        result.put("activeMeetingIds", meetingIds);
+
+        return result;
     }
 }
