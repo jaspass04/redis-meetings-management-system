@@ -2,7 +2,7 @@
 
 ## Description
 ### Overview
-A complete meeting management platform that combines persistent storage (PostgreSQL) with real-time features (Redis) to manage physical meetings. The system tracks active meetings, handles participant joining/leaving, provides chat functionality, and logs all meeting-related activities.
+A backend for a complete meeting management platform that combines persistent storage (PostgreSQL) with real-time features (Redis) to manage physical meetings. The system tracks active meetings, handles participant joining/leaving, provides chat functionality, and logs all meeting-related activities.
 
 ### Features
 The core features of the system include:
